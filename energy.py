@@ -7,6 +7,7 @@ from nbeats_block import NBeatsBlock  # Ensure this is correctly imported from y
 from preprocessing import preprocess_data, prepare_data, denormalize, normalize_data  # Ensure these are correctly imported
 import json
 import logging
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -14,12 +15,13 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
-# Load your model
-model = load_model("C:\\Users\\drago\\OneDrive\\Bureau\\pfe\\my_model.keras", custom_objects={'NBeatsBlock': NBeatsBlock})
+# Load your model with a relative path
+model_path = os.path.join(os.path.dirname(__file__), 'models', 'my_model.keras')
+model = load_model(model_path, custom_objects={'NBeatsBlock': NBeatsBlock})
 logging.info('Model loaded')
 
 # Load normalization parameters
-with open('normalization_params.json', 'r') as f:
+with open(os.path.join(os.path.dirname(__file__), 'normalization_params.json'), 'r') as f:
     normalization_params = json.load(f)
 
 min_values = normalization_params['min_values']
@@ -115,7 +117,6 @@ def predict_week():
     except Exception as e:
         logging.exception("An error occurred during prediction")
         return jsonify({'error': f'An error occurred: {str(e)}'}), 500
-
 
 @app.route('/')
 def index():
