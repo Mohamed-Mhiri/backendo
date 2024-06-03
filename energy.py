@@ -3,11 +3,12 @@ from flask_cors import CORS
 from tensorflow.keras.models import load_model
 import pandas as pd
 import numpy as np
-from nbeats_block import NBeatsBlock  # Ensure this is correctly imported from your project
-from preprocessing import preprocess_data, prepare_data, denormalize, normalize_data  # Ensure these are correctly imported
 import json
 import logging
 import os
+
+from nbeats_block import NBeatsBlock  # Ensure this is correctly imported from your project
+from preprocessing import preprocess_data, prepare_data, denormalize, normalize_data  # Ensure these are correctly imported
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,13 +17,15 @@ app = Flask(__name__)
 CORS(app)
 
 # Load your model with a relative path
-model_path = os.path.join(os.path.dirname(__file__), 'models', 'my_model.keras')
+model_path = os.path.join(os.path.dirname(__file__), 'my_model.keras')
 model = load_model(model_path, custom_objects={'NBeatsBlock': NBeatsBlock})
 logging.info('Model loaded')
 
-# Load normalization parameters
-with open(os.path.join(os.path.dirname(__file__), 'normalization_params.json'), 'r') as f:
+# Load normalization parameters with a relative path
+normalization_params_path = os.path.join(os.path.dirname(__file__), 'normalization_params.json')
+with open(normalization_params_path, 'r') as f:
     normalization_params = json.load(f)
+
 
 min_values = normalization_params['min_values']
 max_values = normalization_params['max_values']
@@ -77,10 +80,10 @@ def predict_week():
         for i in range(24*7):
             predictions = model.predict([windows_df, other_feats])
             logging.debug(f'Raw model predictions: {predictions}')
-            
+
             denormalized_predictions = denormalize(predictions, min_values, max_values, 'kwh').flatten()
             logging.debug(f'Denormalized predictions: {denormalized_predictions}')
-            
+
             prediction_value = float(denormalized_predictions[0])
             if prediction_value < 0:
                 prediction_value = 0
