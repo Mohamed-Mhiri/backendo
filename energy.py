@@ -26,7 +26,6 @@ normalization_params_path = os.path.join(os.path.dirname(__file__), 'normalizati
 with open(normalization_params_path, 'r') as f:
     normalization_params = json.load(f)
 
-
 min_values = normalization_params['min_values']
 max_values = normalization_params['max_values']
 mean_values = normalization_params['mean_values']
