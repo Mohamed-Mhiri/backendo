@@ -1,15 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from tensorflow.keras.models import load_model
 import pandas as pd
 import numpy as np
 import json
 import logging
 import os
-import tensorflow as tf
 
-# Ensure the custom NBeatsBlock is imported if needed
-from nbeats_block import NBeatsBlock
-from preprocessing import preprocess_data, prepare_data, denormalize, normalize_data
+from nbeats_block import NBeatsBlock  # Ensure this is correctly imported from your project
+from preprocessing import preprocess_data, prepare_data, denormalize, normalize_data  # Ensure these are correctly imported
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,28 +16,12 @@ logging.basicConfig(level=logging.DEBUG)
 app = Flask(__name__)
 CORS(app)
 
-# Convert the existing Keras model to TensorFlow Lite with quantization
+# Load your model with a relative path
 model_path = os.path.join(os.path.dirname(__file__), 'my_model.keras')
-model = tf.keras.models.load_model(model_path, custom_objects={'NBeatsBlock': NBeatsBlock})
+model = load_model(model_path, custom_objects={'NBeatsBlock': NBeatsBlock})
+logging.info('Model loaded')
 
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-converter.optimizations = [tf.lite.Optimize.DEFAULT]
-tflite_model = converter.convert()
-
-# Save the quantized model
-tflite_model_path = os.path.join(os.path.dirname(__file__), 'my_model_quant.tflite')
-with open(tflite_model_path, 'wb') as f:
-    f.write(tflite_model)
-logging.info('Quantized model saved')
-
-# Load the TensorFlow Lite model
-interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
-interpreter.allocate_tensors()
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
-logging.info('Quantized model loaded')
-
-# Load normalization parameters
+# Load normalization parameters with a relative path
 normalization_params_path = os.path.join(os.path.dirname(__file__), 'normalization_params.json')
 with open(normalization_params_path, 'r') as f:
     normalization_params = json.load(f)
@@ -94,11 +77,7 @@ def predict_week():
         future_timestamps = pd.date_range(start=horizon.index[-1], periods=24*7 + 1, freq='H')[1:]
 
         for i in range(24*7):
-            # Prepare input tensor
-            interpreter.set_tensor(input_details[0]['index'], np.expand_dims(windows_df.values, axis=0).astype(np.float32))
-            interpreter.invoke()
-            predictions = interpreter.get_tensor(output_details[0]['index'])
-
+            predictions = model.predict([windows_df, other_feats])
             logging.debug(f'Raw model predictions: {predictions}')
 
             denormalized_predictions = denormalize(predictions, min_values, max_values, 'kwh').flatten()
@@ -118,7 +97,12 @@ def predict_week():
             new_other_feats_row = other_feats.iloc[-1].copy()
             other_feats = pd.concat([other_feats.iloc[1:], pd.DataFrame([new_other_feats_row], columns=other_feats.columns)])
 
+        # Denormalize the actual kwh values for comparison
         denormalized_horizon = denormalize(horizon.values, min_values, max_values, 'kwh')
+
+        logging.debug(f"Length of horizon.index: {len(horizon.index)}")
+        logging.debug(f"Length of future_timestamps: {len(future_timestamps)}")
+        logging.debug(f"Length of weekly_predictions: {len(weekly_predictions)}")
 
         if len(future_timestamps) != len(weekly_predictions):
             raise ValueError("Length of future_timestamps and weekly_predictions do not match")
